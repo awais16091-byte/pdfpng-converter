@@ -1,0 +1,726 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Converter Desk — PDF ⇄ PNG</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,400;8..60,600;8..60,700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --paper: #0A0D16;
+    --paper-card: #131A2B;
+    --ink: #E9ECF5;
+    --ink-soft: #7E89A8;
+    --teal: #3D7BFF;
+    --teal-deep: #2451D6;
+    --brass: #5FC3FF;
+    --line: #232C45;
+    --white: #171F33;
+    --radius: 3px;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    background:var(--paper);
+    color:var(--ink);
+    font-family:'Inter',sans-serif;
+    min-height:100vh;
+    background-image:
+      radial-gradient(circle at 1px 1px, rgba(255,255,255,0.045) 1px, transparent 0);
+    background-size: 22px 22px;
+  }
+  .wrap{max-width:920px;margin:0 auto;padding:48px 24px 80px;}
+
+  /* Header / stamp logo */
+  header{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    margin-bottom:36px;
+    border-bottom:2px solid var(--ink);
+    padding-bottom:20px;
+  }
+  .brand{display:flex;align-items:center;gap:16px;}
+  .stamp{
+    width:52px;height:52px;
+    border:2px solid var(--teal-deep);
+    border-radius:50%;
+    display:flex;align-items:center;justify-content:center;
+    transform:rotate(-8deg);
+    font-family:'IBM Plex Mono',monospace;
+    font-size:10px;font-weight:600;
+    color:var(--teal-deep);
+    letter-spacing:0.5px;
+    flex-shrink:0;
+  }
+  .brand h1{
+    font-family:'Source Serif 4',serif;
+    font-size:28px;
+    font-weight:700;
+    margin:0;
+    letter-spacing:-0.01em;
+  }
+  .brand p{
+    margin:2px 0 0;
+    font-family:'IBM Plex Mono',monospace;
+    font-size:11px;
+    color:var(--ink-soft);
+    letter-spacing:0.06em;
+    text-transform:uppercase;
+  }
+  .desk-no{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:11px;
+    color:var(--ink-soft);
+    text-align:right;
+    line-height:1.6;
+  }
+
+  /* Tabs styled like folder tabs */
+  .tabs{display:flex;gap:6px;margin-bottom:0;position:relative;z-index:2;}
+  .tab{
+    padding:12px 22px 14px;
+    font-family:'IBM Plex Mono',monospace;
+    font-size:12.5px;
+    letter-spacing:0.04em;
+    text-transform:uppercase;
+    background:var(--paper-card);
+    border:1px solid var(--line);
+    border-bottom:none;
+    border-radius:6px 6px 0 0;
+    cursor:pointer;
+    color:var(--ink-soft);
+    transition:background .15s, color .15s;
+  }
+  .tab.active{
+    background:var(--white);
+    color:var(--ink);
+    font-weight:600;
+    border-color:var(--ink);
+  }
+  .panel{
+    background:var(--white);
+    border:1px solid var(--ink);
+    border-radius:0 8px 8px 8px;
+    padding:32px;
+    position:relative;
+    z-index:1;
+    box-shadow:0 2px 0 var(--line), 6px 6px 0 -3px transparent;
+  }
+  .panel{ display:none; }
+  .panel.active{ display:block; }
+
+  .lede{
+    font-family:'Source Serif 4',serif;
+    font-size:15px;
+    color:var(--ink-soft);
+    margin:0 0 22px;
+    max-width:60ch;
+    line-height:1.5;
+  }
+
+  /* Dropzone */
+  .dropzone{
+    border:1.5px dashed #37425F;
+    border-radius:var(--radius);
+    background:
+      repeating-linear-gradient(135deg, transparent, transparent 11px, rgba(255,255,255,0.02) 11px, rgba(255,255,255,0.02) 12px);
+    padding:36px 20px;
+    text-align:center;
+    cursor:pointer;
+    transition:border-color .15s, background .15s;
+  }
+  .dropzone:hover, .dropzone.drag{
+    border-color:var(--teal);
+    background-color:#16203A;
+  }
+  .dropzone .dz-icon{
+    font-family:'Source Serif 4',serif;
+    font-size:30px;
+    color:var(--teal-deep);
+    display:block;
+    margin-bottom:8px;
+  }
+  .dropzone .dz-title{
+    font-weight:600;
+    font-size:14.5px;
+    margin-bottom:4px;
+  }
+  .dropzone .dz-sub{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:11px;
+    color:var(--ink-soft);
+  }
+  input[type=file]{display:none;}
+
+  /* Controls row */
+  .controls{
+    display:flex;
+    gap:18px;
+    flex-wrap:wrap;
+    align-items:flex-end;
+    margin:22px 0;
+    padding:16px 18px;
+    background:var(--paper-card);
+    border-radius:var(--radius);
+    border:1px solid var(--line);
+  }
+  .field{display:flex;flex-direction:column;gap:5px;}
+  .field label{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:10.5px;
+    text-transform:uppercase;
+    letter-spacing:0.06em;
+    color:var(--ink-soft);
+  }
+  .field select{
+    font-family:'Inter',sans-serif;
+    font-size:13px;
+    padding:7px 10px;
+    border:1px solid #2A3350;
+    border-radius:2px;
+    background:var(--white);
+    color:var(--ink);
+  }
+
+  button{
+    font-family:'Inter',sans-serif;
+    font-weight:600;
+    font-size:13.5px;
+    border:none;
+    border-radius:2px;
+    padding:11px 20px;
+    cursor:pointer;
+    transition:transform .08s ease, background .15s;
+  }
+  button:active{transform:translateY(1px);}
+  .btn-primary{
+    background:var(--teal-deep);
+    color:var(--white);
+  }
+  .btn-primary:hover{background:var(--teal);}
+  .btn-primary:disabled{background:#39415C;color:#8B93A7;cursor:not-allowed;}
+  .btn-ghost{
+    background:transparent;
+    color:var(--brass);
+    border:1px solid var(--teal-deep);
+  }
+  .btn-ghost:hover{background:#16203A;}
+
+  .action-row{display:flex;gap:10px;align-items:center;margin-top:18px;flex-wrap:wrap;}
+  .status{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:11.5px;
+    color:var(--ink-soft);
+  }
+
+  /* Contact sheet grid for results */
+  .sheet-label{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:11px;
+    text-transform:uppercase;
+    letter-spacing:0.08em;
+    color:var(--ink-soft);
+    margin:28px 0 10px;
+    display:flex;
+    align-items:center;
+    gap:10px;
+  }
+  .sheet-label::after{
+    content:"";
+    flex:1;
+    height:1px;
+    background:var(--line);
+  }
+  .grid{
+    display:grid;
+    grid-template-columns:repeat(auto-fill, minmax(140px,1fr));
+    gap:16px;
+  }
+  .card{
+    background:var(--paper-card);
+    border:1px solid var(--line);
+    border-radius:2px;
+    padding:10px;
+    position:relative;
+  }
+  .card .frame{
+    background:var(--white);
+    border:1px solid #2A3350;
+    aspect-ratio:3/4;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    overflow:hidden;
+    margin-bottom:8px;
+    position:relative;
+  }
+  .card .frame img{max-width:100%;max-height:100%;display:block;}
+  .card .frame .sprocket{
+    position:absolute;left:0;top:0;bottom:0;width:6px;
+    background-image: radial-gradient(circle, var(--paper-card) 2px, transparent 2.2px);
+    background-size:6px 12px;
+  }
+  .card .cap{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:10.5px;
+    color:var(--ink-soft);
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+  }
+  .card .cap button{
+    padding:4px 8px;
+    font-size:10px;
+    background:transparent;
+    border:1px solid var(--teal-deep);
+    color:var(--teal-deep);
+  }
+  .card .cap button:hover{background:#16203A;}
+
+  /* Reorderable list for PNG->PDF */
+  .imglist{display:flex;flex-direction:column;gap:8px;margin-top:4px;}
+  .imgrow{
+    display:flex;
+    align-items:center;
+    gap:12px;
+    background:var(--paper-card);
+    border:1px solid var(--line);
+    border-radius:2px;
+    padding:8px 10px;
+  }
+  .imgrow .thumb{
+    width:44px;height:56px;
+    background:var(--white);
+    border:1px solid #2A3350;
+    display:flex;align-items:center;justify-content:center;
+    overflow:hidden;flex-shrink:0;
+  }
+  .imgrow .thumb img{max-width:100%;max-height:100%;}
+  .imgrow .meta{flex:1;min-width:0;}
+  .imgrow .name{font-size:12.5px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .imgrow .size{font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:var(--ink-soft);}
+  .imgrow .move{
+    display:flex;gap:3px;
+  }
+  .imgrow .move button, .imgrow .remove{
+    background:transparent;border:1px solid #2A3350;color:var(--ink-soft);
+    padding:4px 8px;font-size:11px;
+  }
+  .imgrow .move button:hover, .imgrow .remove:hover{border-color:var(--teal);color:var(--brass);}
+  .imgrow .remove{color:#FF6B6B;border-color:#4A2A34;}
+  .imgrow .remove:hover{background:#2A1519;border-color:#FF6B6B;color:#FF6B6B;}
+
+  footer{
+    text-align:center;
+    margin-top:40px;
+    font-family:'IBM Plex Mono',monospace;
+    font-size:10.5px;
+    color:#4B5670;
+    letter-spacing:0.04em;
+  }
+
+  @media (max-width:560px){
+    .wrap{padding:28px 14px 60px;}
+    header{flex-direction:column;align-items:flex-start;gap:14px;}
+    .desk-no{text-align:left;}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div class="brand">
+      <div class="stamp">DESK<br>NO.7</div>
+      <div>
+        <h1>Converter Desk</h1>
+        <p>PDF ⇄ PNG, processed locally</p>
+      </div>
+    </div>
+    <div class="desk-no">
+      Ledger — In‑browser<br>No uploads, no server
+    </div>
+  </header>
+
+  <div class="tabs">
+    <div class="tab active" data-tab="pdf2png">PDF → PNG</div>
+    <div class="tab" data-tab="png2pdf">PNG → PDF</div>
+  </div>
+
+  <!-- PDF TO PNG -->
+  <div class="panel active" id="panel-pdf2png">
+    <p class="lede">Drop in a PDF and pull each page out as its own PNG image, rendered at the resolution you choose.</p>
+
+    <div class="dropzone" id="dz-pdf">
+      <span class="dz-icon">⎘</span>
+      <div class="dz-title">Drop a PDF here, or click to browse</div>
+      <div class="dz-sub">.PDF — one file at a time</div>
+      <input type="file" id="input-pdf" accept="application/pdf">
+    </div>
+
+    <div class="controls">
+      <div class="field">
+        <label>Resolution</label>
+        <select id="pdf-scale">
+          <option value="1">Standard — 1×</option>
+          <option value="2" selected>Sharp — 2×</option>
+          <option value="3">Print — 3×</option>
+          <option value="4">Archive — 4×</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>File</label>
+        <span class="status" id="pdf-filename">No file loaded</span>
+      </div>
+    </div>
+
+    <div class="action-row">
+      <button class="btn-primary" id="btn-convert-pdf" disabled>Convert to PNG</button>
+      <button class="btn-ghost" id="btn-download-zip" style="display:none;">Download all as ZIP</button>
+      <span class="status" id="pdf-status"></span>
+    </div>
+
+    <div id="pdf-results"></div>
+  </div>
+
+  <!-- PNG TO PDF -->
+  <div class="panel" id="panel-png2pdf">
+    <p class="lede">Drop in one or more images and bind them into a single PDF, in the order shown below.</p>
+
+    <div class="dropzone" id="dz-png">
+      <span class="dz-icon">⎗</span>
+      <div class="dz-title">Drop images here, or click to browse</div>
+      <div class="dz-sub">.PNG / .JPG — multiple files welcome</div>
+      <input type="file" id="input-png" accept="image/png,image/jpeg" multiple>
+    </div>
+
+    <div class="controls">
+      <div class="field">
+        <label>Page size</label>
+        <select id="pdf-pagesize">
+          <option value="fit" selected>Fit to image</option>
+          <option value="a4">A4</option>
+          <option value="letter">Letter</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Orientation</label>
+        <select id="pdf-orientation">
+          <option value="auto" selected>Auto</option>
+          <option value="portrait">Portrait</option>
+          <option value="landscape">Landscape</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Margin</label>
+        <select id="pdf-margin">
+          <option value="0" selected>None</option>
+          <option value="24">Narrow</option>
+          <option value="48">Standard</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="sheet-label" id="imglist-label" style="display:none;">Loaded images</div>
+    <div class="imglist" id="imglist"></div>
+
+    <div class="action-row">
+      <button class="btn-primary" id="btn-convert-png" disabled>Build PDF</button>
+      <span class="status" id="png-status"></span>
+    </div>
+  </div>
+
+  <footer>CONVERTER DESK · everything runs in your browser tab</footer>
+</div>
+
+<script>
+pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+/* ---------- Tabs ---------- */
+document.querySelectorAll('.tab').forEach(tab=>{
+  tab.addEventListener('click', ()=>{
+    document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+    document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
+    tab.classList.add('active');
+    document.getElementById('panel-'+tab.dataset.tab).classList.add('active');
+  });
+});
+
+/* ---------- PDF -> PNG ---------- */
+let currentPdfFile = null;
+let renderedPages = []; // {dataUrl, name}
+
+const dzPdf = document.getElementById('dz-pdf');
+const inputPdf = document.getElementById('input-pdf');
+const pdfFilename = document.getElementById('pdf-filename');
+const btnConvertPdf = document.getElementById('btn-convert-pdf');
+const btnDownloadZip = document.getElementById('btn-download-zip');
+const pdfStatus = document.getElementById('pdf-status');
+const pdfResults = document.getElementById('pdf-results');
+
+function setupDropzone(dz, input, onFiles){
+  dz.addEventListener('click', ()=> input.click());
+  input.addEventListener('change', e=> onFiles(e.target.files));
+  dz.addEventListener('dragover', e=>{ e.preventDefault(); dz.classList.add('drag'); });
+  dz.addEventListener('dragleave', ()=> dz.classList.remove('drag'));
+  dz.addEventListener('drop', e=>{
+    e.preventDefault();
+    dz.classList.remove('drag');
+    onFiles(e.dataTransfer.files);
+  });
+}
+
+setupDropzone(dzPdf, inputPdf, files=>{
+  if(!files.length) return;
+  const f = files[0];
+  if(f.type !== 'application/pdf'){ pdfStatus.textContent = 'Please choose a PDF file.'; return; }
+  currentPdfFile = f;
+  pdfFilename.textContent = f.name;
+  btnConvertPdf.disabled = false;
+  pdfResults.innerHTML = '';
+  btnDownloadZip.style.display = 'none';
+  pdfStatus.textContent = 'Ready to convert.';
+});
+
+btnConvertPdf.addEventListener('click', async ()=>{
+  if(!currentPdfFile) return;
+  btnConvertPdf.disabled = true;
+  pdfStatus.textContent = 'Rendering pages…';
+  pdfResults.innerHTML = '';
+  renderedPages = [];
+  const scale = parseFloat(document.getElementById('pdf-scale').value);
+
+  try{
+    const buf = await currentPdfFile.arrayBuffer();
+    const pdf = await pdfjsLib.getDocument({data: buf}).promise;
+    const baseName = currentPdfFile.name.replace(/\.pdf$/i,'');
+
+    const label = document.createElement('div');
+    label.className = 'sheet-label';
+    label.textContent = `Contact sheet — ${pdf.numPages} page${pdf.numPages>1?'s':''}`;
+    pdfResults.appendChild(label);
+
+    const grid = document.createElement('div');
+    grid.className = 'grid';
+    pdfResults.appendChild(grid);
+
+    for(let i=1;i<=pdf.numPages;i++){
+      pdfStatus.textContent = `Rendering page ${i} of ${pdf.numPages}…`;
+      const page = await pdf.getPage(i);
+      const viewport = page.getViewport({scale});
+      const canvas = document.createElement('canvas');
+      canvas.width = viewport.width;
+      canvas.height = viewport.height;
+      const ctx = canvas.getContext('2d');
+      await page.render({canvasContext: ctx, viewport}).promise;
+      const dataUrl = canvas.toDataURL('image/png');
+      const name = `${baseName}_p${String(i).padStart(2,'0')}.png`;
+      renderedPages.push({dataUrl, name});
+
+      const card = document.createElement('div');
+      card.className = 'card';
+      card.innerHTML = `
+        <div class="frame"><div class="sprocket"></div><img src="${dataUrl}" alt="Page ${i}"></div>
+        <div class="cap"><span>Page ${i}</span><button data-idx="${i-1}">Save</button></div>
+      `;
+      grid.appendChild(card);
+    }
+
+    pdfResults.querySelectorAll('.cap button').forEach(btn=>{
+      btn.addEventListener('click', ()=>{
+        const idx = parseInt(btn.dataset.idx,10);
+        downloadDataUrl(renderedPages[idx].dataUrl, renderedPages[idx].name);
+      });
+    });
+
+    pdfStatus.textContent = `Done — ${pdf.numPages} page${pdf.numPages>1?'s':''} converted.`;
+    if(pdf.numPages>1){ btnDownloadZip.style.display = 'inline-block'; }
+  }catch(err){
+    console.error(err);
+    pdfStatus.textContent = 'Something went wrong reading that PDF.';
+  }finally{
+    btnConvertPdf.disabled = false;
+  }
+});
+
+btnDownloadZip.addEventListener('click', async ()=>{
+  if(!renderedPages.length) return;
+  pdfStatus.textContent = 'Packing ZIP…';
+  const zip = new JSZip();
+  renderedPages.forEach(p=>{
+    const b64 = p.dataUrl.split(',')[1];
+    zip.file(p.name, b64, {base64:true});
+  });
+  const blob = await zip.generateAsync({type:'blob'});
+  const url = URL.createObjectURL(blob);
+  const name = (currentPdfFile ? currentPdfFile.name.replace(/\.pdf$/i,'') : 'pages') + '_png.zip';
+  downloadBlobUrl(url, name);
+  pdfStatus.textContent = 'ZIP downloaded.';
+});
+
+function downloadBlobUrl(url, name){
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = name;
+  a.rel = 'noopener';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(()=> URL.revokeObjectURL(url), 2000);
+}
+
+function dataUrlToBlob(dataUrl){
+  const [meta, b64] = dataUrl.split(',');
+  const mime = meta.match(/:(.*?);/)[1];
+  const bin = atob(b64);
+  const arr = new Uint8Array(bin.length);
+  for(let i=0;i<bin.length;i++){ arr[i] = bin.charCodeAt(i); }
+  return new Blob([arr], {type: mime});
+}
+
+function downloadDataUrl(dataUrl, name){
+  const blob = dataUrlToBlob(dataUrl);
+  const url = URL.createObjectURL(blob);
+  downloadBlobUrl(url, name);
+}
+
+/* ---------- PNG -> PDF ---------- */
+let imageItems = []; // {file, dataUrl, w, h}
+
+const dzPng = document.getElementById('dz-png');
+const inputPng = document.getElementById('input-png');
+const imglist = document.getElementById('imglist');
+const imglistLabel = document.getElementById('imglist-label');
+const btnConvertPng = document.getElementById('btn-convert-png');
+const pngStatus = document.getElementById('png-status');
+
+setupDropzone(dzPng, inputPng, async files=>{
+  const arr = Array.from(files).filter(f=>f.type==='image/png' || f.type==='image/jpeg');
+  if(!arr.length) return;
+  for(const f of arr){
+    const dataUrl = await fileToDataUrl(f);
+    const dims = await getImageDims(dataUrl);
+    imageItems.push({file:f, dataUrl, w:dims.w, h:dims.h});
+  }
+  renderImgList();
+});
+
+function fileToDataUrl(file){
+  return new Promise((res,rej)=>{
+    const r = new FileReader();
+    r.onload = ()=> res(r.result);
+    r.onerror = rej;
+    r.readAsDataURL(file);
+  });
+}
+function getImageDims(dataUrl){
+  return new Promise(res=>{
+    const img = new Image();
+    img.onload = ()=> res({w:img.width, h:img.height});
+    img.src = dataUrl;
+  });
+}
+function formatBytes(bytes){
+  if(bytes < 1024) return bytes+' B';
+  if(bytes < 1024*1024) return (bytes/1024).toFixed(1)+' KB';
+  return (bytes/(1024*1024)).toFixed(1)+' MB';
+}
+
+function renderImgList(){
+  imglist.innerHTML = '';
+  imglistLabel.style.display = imageItems.length ? 'flex' : 'none';
+  btnConvertPng.disabled = imageItems.length === 0;
+
+  imageItems.forEach((item, idx)=>{
+    const row = document.createElement('div');
+    row.className = 'imgrow';
+    row.innerHTML = `
+      <div class="thumb"><img src="${item.dataUrl}" alt=""></div>
+      <div class="meta">
+        <div class="name">${idx+1}. ${item.file.name}</div>
+        <div class="size">${item.w}×${item.h}px · ${formatBytes(item.file.size)}</div>
+      </div>
+      <div class="move">
+        <button data-act="up" data-idx="${idx}" ${idx===0?'disabled':''}>↑</button>
+        <button data-act="down" data-idx="${idx}" ${idx===imageItems.length-1?'disabled':''}>↓</button>
+      </div>
+      <button class="remove" data-act="remove" data-idx="${idx}">✕</button>
+    `;
+    imglist.appendChild(row);
+  });
+
+  imglist.querySelectorAll('button').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const idx = parseInt(btn.dataset.idx,10);
+      const act = btn.dataset.act;
+      if(act==='remove'){ imageItems.splice(idx,1); }
+      else if(act==='up' && idx>0){ [imageItems[idx-1],imageItems[idx]] = [imageItems[idx],imageItems[idx-1]]; }
+      else if(act==='down' && idx<imageItems.length-1){ [imageItems[idx+1],imageItems[idx]] = [imageItems[idx],imageItems[idx+1]]; }
+      renderImgList();
+    });
+  });
+}
+
+btnConvertPng.addEventListener('click', ()=>{
+  if(!imageItems.length) return;
+  pngStatus.textContent = 'Binding pages…';
+  const { jsPDF } = window.jspdf;
+  const pageSizeChoice = document.getElementById('pdf-pagesize').value;
+  const orientationChoice = document.getElementById('pdf-orientation').value;
+  const margin = parseInt(document.getElementById('pdf-margin').value,10);
+
+  let doc = null;
+
+  imageItems.forEach((item, idx)=>{
+    const imgRatio = item.w / item.h;
+    let orientation = orientationChoice;
+    if(orientation === 'auto'){
+      orientation = imgRatio > 1 ? 'landscape' : 'portrait';
+    }
+
+    let pageW, pageH;
+    if(pageSizeChoice === 'fit'){
+      // Use image's own pixel size converted to pt-ish scale (72dpi assumption normalized)
+      const maxDim = 1600;
+      const scaleFactor = Math.min(1, maxDim / Math.max(item.w, item.h));
+      pageW = item.w * scaleFactor * (72/96);
+      pageH = item.h * scaleFactor * (72/96);
+      orientation = pageW > pageH ? 'landscape' : 'portrait';
+    } else {
+      const sizes = { a4: [595.28, 841.89], letter: [612, 792] };
+      let [w,h] = sizes[pageSizeChoice];
+      if(orientation === 'landscape'){ [w,h] = [h,w]; }
+      pageW = w; pageH = h;
+    }
+
+    if(idx === 0){
+      doc = new jsPDF({ orientation, unit:'pt', format:[pageW,pageH] });
+    } else {
+      doc.addPage([pageW,pageH], orientation);
+    }
+
+    const availW = pageW - margin*2;
+    const availH = pageH - margin*2;
+    const fitRatio = Math.min(availW/item.w, availH/item.h);
+    const drawW = item.w * fitRatio;
+    const drawH = item.h * fitRatio;
+    const x = (pageW - drawW)/2;
+    const y = (pageH - drawH)/2;
+
+    const format = item.file.type === 'image/jpeg' ? 'JPEG' : 'PNG';
+    doc.addImage(item.dataUrl, format, x, y, drawW, drawH, undefined, 'FAST');
+  });
+
+  const blob = doc.output('blob');
+  const url = URL.createObjectURL(blob);
+  downloadBlobUrl(url, 'converted.pdf');
+  pngStatus.textContent = `Done — ${imageItems.length} page${imageItems.length>1?'s':''} bound into converted.pdf`;
+});
+</script>
+</body>
+</html>
